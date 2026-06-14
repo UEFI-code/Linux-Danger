@@ -546,18 +546,27 @@ SYM_CODE_END(\asmsym)
  * Double fault entry. Straight paranoid. No checks from which context
  * this comes because for the espfix induced #DF this would do the wrong
  * thing.
+ 	RSP+0: error code
+	RSP+8: orignal RIP
+	RSP+16: orignal CS
+	RSP+24: orignal RFLAGS
+	RSP+32: orignal RSP
+	RSP+40: orignal SS
  */
 
 .macro idtentry_df vector asmsym cfunc
 SYM_CODE_START(\asmsym)
 	UNWIND_HINT_IRET_ENTRY offset=8
-	ENDBR
-	ASM_CLAC
-	cld
 	// make a debug signal to QEMU
 	mov $0x2333, %dx // destination port
 	mov $0xDEAD, %ax // data
 	out %ax, %dx
+	// adjust gs
+	cmp $__KERNEL_CS, 16(%rsp)
+	je already_ker_gs
+	// 2333, we are from user thread
+	swapgs
+already_ker_gs:
 	idtentry_body \cfunc has_error_code=1
 SYM_CODE_END(\asmsym)
 .endm
