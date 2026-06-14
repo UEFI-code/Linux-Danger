@@ -114,19 +114,14 @@ SYM_INNER_LABEL(entry_SYSENTER_compat_after_hwframe, SYM_L_GLOBAL)
 	 */
 	testl	$X86_EFLAGS_NT|X86_EFLAGS_AC|X86_EFLAGS_TF, EFLAGS(%rsp)
 	jnz	.Lsysenter_fix_flags
-.Lsysenter_flags_fixed:
-
-	movq	%rsp, %rdi
-	call	do_SYSENTER_32
-	/* XEN PV guests always use IRET path */
-	ALTERNATIVE "testl %eax, %eax; jz swapgs_restore_regs_and_return_to_usermode", \
-		    "jmp swapgs_restore_regs_and_return_to_usermode", X86_FEATURE_XENPV
-	jmp	sysret32_from_system_call
-
+	jmp	.Lsysenter_flags_fixed
 .Lsysenter_fix_flags:
 	pushq	$X86_EFLAGS_FIXED
 	popfq
-	jmp	.Lsysenter_flags_fixed
+.Lsysenter_flags_fixed:
+	movq	%rsp, %rdi
+	call	do_SYSENTER_32
+	jmp swapgs_restore_regs_and_return_to_usermode
 SYM_INNER_LABEL(__end_entry_SYSENTER_compat, SYM_L_GLOBAL)
 SYM_CODE_END(entry_SYSENTER_compat)
 
@@ -212,66 +207,7 @@ SYM_INNER_LABEL(entry_SYSCALL_compat_after_hwframe, SYM_L_GLOBAL)
 
 	movq	%rsp, %rdi
 	call	do_fast_syscall_32
-	/* XEN PV guests always use IRET path */
-	ALTERNATIVE "testl %eax, %eax; jz swapgs_restore_regs_and_return_to_usermode", \
-		    "jmp swapgs_restore_regs_and_return_to_usermode", X86_FEATURE_XENPV
-
-	/* Opportunistic SYSRET */
-sysret32_from_system_call:
-	/*
-	 * We are not going to return to userspace from the trampoline
-	 * stack. So let's erase the thread stack right now.
-	 */
-	STACKLEAK_ERASE
-
-	IBRS_EXIT
-
-	movq	RBX(%rsp), %rbx		/* pt_regs->rbx */
-	movq	RBP(%rsp), %rbp		/* pt_regs->rbp */
-	movq	EFLAGS(%rsp), %r11	/* pt_regs->flags (in r11) */
-	movq	RIP(%rsp), %rcx		/* pt_regs->ip (in rcx) */
-	addq	$RAX, %rsp		/* Skip r8-r15 */
-	popq	%rax			/* pt_regs->rax */
-	popq	%rdx			/* Skip pt_regs->cx */
-	popq	%rdx			/* pt_regs->dx */
-	popq	%rsi			/* pt_regs->si */
-	popq	%rdi			/* pt_regs->di */
-
-        /*
-         * USERGS_SYSRET32 does:
-         *  GSBASE = user's GS base
-         *  EIP = ECX
-         *  RFLAGS = R11
-         *  CS = __USER32_CS
-         *  SS = __USER_DS
-         *
-	 * ECX will not match pt_regs->cx, but we're returning to a vDSO
-	 * trampoline that will fix up RCX, so this is okay.
-	 *
-	 * R12-R15 are callee-saved, so they contain whatever was in them
-	 * when the system call started, which is already known to user
-	 * code.  We zero R8-R10 to avoid info leaks.
-         */
-	movq	RSP-ORIG_RAX(%rsp), %rsp
-SYM_INNER_LABEL(entry_SYSRETL_compat_unsafe_stack, SYM_L_GLOBAL)
-	ANNOTATE_NOENDBR
-
-	/*
-	 * The original userspace %rsp (RSP-ORIG_RAX(%rsp)) is stored
-	 * on the process stack which is not mapped to userspace and
-	 * not readable after we SWITCH_TO_USER_CR3.  Delay the CR3
-	 * switch until after after the last reference to the process
-	 * stack.
-	 *
-	 * %r8/%r9 are zeroed before the sysret, thus safe to clobber.
-	 */
-	SWITCH_TO_USER_CR3_NOSTACK scratch_reg=%r8 scratch_reg2=%r9
-
-	xorl	%r8d, %r8d
-	xorl	%r9d, %r9d
-	xorl	%r10d, %r10d
-	swapgs
-	sysretl
+	jmp	swapgs_restore_regs_and_return_to_usermode
 SYM_INNER_LABEL(entry_SYSRETL_compat_end, SYM_L_GLOBAL)
 	ANNOTATE_NOENDBR
 	int3

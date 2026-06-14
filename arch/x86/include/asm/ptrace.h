@@ -193,8 +193,6 @@ static __always_inline bool ip_within_syscall_gap(struct pt_regs *regs)
 		      regs->ip <  (unsigned long)entry_SYSRETQ_end);
 #ifdef CONFIG_IA32_EMULATION
 	ret = ret || (regs->ip >= (unsigned long)entry_SYSCALL_compat &&
-		      regs->ip <  (unsigned long)entry_SYSCALL_compat_safe_stack);
-	ret = ret || (regs->ip >= (unsigned long)entry_SYSRETL_compat_unsafe_stack &&
 		      regs->ip <  (unsigned long)entry_SYSRETL_compat_end);
 #endif
 
