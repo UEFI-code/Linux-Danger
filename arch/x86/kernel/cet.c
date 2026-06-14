@@ -115,7 +115,7 @@ static int __init ibt_setup(char *str)
 
 __setup("ibt=", ibt_setup);
 
-DEFINE_IDTENTRY_ERRORCODE(exc_control_protection)
+DEFINE_IDTENTRY_RAW_ERRORCODE(exc_control_protection)
 {
 	if (user_mode(regs)) {
 		if (cpu_feature_enabled(X86_FEATURE_USER_SHSTK))

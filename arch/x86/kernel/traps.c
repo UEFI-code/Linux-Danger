@@ -190,13 +190,13 @@ static __always_inline void __user *error_get_trap_addr(struct pt_regs *regs)
 	return (void __user *)uprobe_get_trap_addr(regs);
 }
 
-DEFINE_IDTENTRY(exc_divide_error)
+DEFINE_IDTENTRY_RAW(exc_divide_error)
 {
 	do_error_trap(regs, 0, "divide error", X86_TRAP_DE, SIGFPE,
 		      FPE_INTDIV, error_get_trap_addr(regs));
 }
 
-DEFINE_IDTENTRY(exc_overflow)
+DEFINE_IDTENTRY_RAW(exc_overflow)
 {
 	do_error_trap(regs, 0, "overflow", X86_TRAP_OF, SIGSEGV, 0, NULL);
 }
@@ -265,31 +265,31 @@ DEFINE_IDTENTRY_RAW(exc_invalid_op)
 	irqentry_exit(regs, state);
 }
 
-DEFINE_IDTENTRY(exc_coproc_segment_overrun)
+DEFINE_IDTENTRY_RAW(exc_coproc_segment_overrun)
 {
 	do_error_trap(regs, 0, "coprocessor segment overrun",
 		      X86_TRAP_OLD_MF, SIGFPE, 0, NULL);
 }
 
-DEFINE_IDTENTRY_ERRORCODE(exc_invalid_tss)
+DEFINE_IDTENTRY_RAW_ERRORCODE(exc_invalid_tss)
 {
 	do_error_trap(regs, error_code, "invalid TSS", X86_TRAP_TS, SIGSEGV,
 		      0, NULL);
 }
 
-DEFINE_IDTENTRY_ERRORCODE(exc_segment_not_present)
+DEFINE_IDTENTRY_RAW_ERRORCODE(exc_segment_not_present)
 {
 	do_error_trap(regs, error_code, "segment not present", X86_TRAP_NP,
 		      SIGBUS, 0, NULL);
 }
 
-DEFINE_IDTENTRY_ERRORCODE(exc_stack_segment)
+DEFINE_IDTENTRY_RAW_ERRORCODE(exc_stack_segment)
 {
 	do_error_trap(regs, error_code, "stack segment", X86_TRAP_SS, SIGBUS,
 		      0, NULL);
 }
 
-DEFINE_IDTENTRY_ERRORCODE(exc_alignment_check)
+DEFINE_IDTENTRY_RAW_ERRORCODE(exc_alignment_check)
 {
 	char *str = "alignment check";
 
@@ -476,7 +476,7 @@ DEFINE_IDTENTRY_DF(exc_double_fault)
 	instrumentation_end();
 }
 
-DEFINE_IDTENTRY(exc_bounds)
+DEFINE_IDTENTRY_RAW(exc_bounds)
 {
 	if (notify_die(DIE_TRAP, "bounds", regs, 0,
 			X86_TRAP_BR, SIGSEGV) == NOTIFY_STOP)
@@ -648,7 +648,7 @@ static void gp_user_force_sig_segv(struct pt_regs *regs, int trapnr,
 	force_sig(SIGSEGV);
 }
 
-DEFINE_IDTENTRY_ERRORCODE(exc_general_protection)
+DEFINE_IDTENTRY_RAW_ERRORCODE(exc_general_protection)
 {
 	char desc[sizeof(GPFSTR) + 50 + 2*sizeof(unsigned long) + 1] = GPFSTR;
 	enum kernel_gp_hint hint = GP_NO_HINT;
@@ -1090,30 +1090,14 @@ out:
 	irqentry_exit_to_user_mode(regs);
 }
 
-#ifdef CONFIG_X86_64
-/* IST stack entry */
-DEFINE_IDTENTRY_DEBUG(exc_debug)
-{
-	exc_debug_kernel(regs, debug_read_clear_dr6());
-}
-
-/* User entry, runs on regular task stack */
-DEFINE_IDTENTRY_DEBUG_USER(exc_debug)
-{
-	exc_debug_user(regs, debug_read_clear_dr6());
-}
-#else
-/* 32 bit does not have separate entry points. */
 DEFINE_IDTENTRY_RAW(exc_debug)
 {
 	unsigned long dr6 = debug_read_clear_dr6();
-
 	if (user_mode(regs))
 		exc_debug_user(regs, dr6);
 	else
 		exc_debug_kernel(regs, dr6);
 }
-#endif
 
 /*
  * Note that we play around with the 'TS' bit in an attempt to get
@@ -1166,24 +1150,24 @@ exit:
 	cond_local_irq_disable(regs);
 }
 
-DEFINE_IDTENTRY(exc_coprocessor_error)
+DEFINE_IDTENTRY_RAW(exc_coprocessor_error)
 {
 	math_error(regs, X86_TRAP_MF);
 }
 
-DEFINE_IDTENTRY(exc_simd_coprocessor_error)
+DEFINE_IDTENTRY_RAW(exc_simd_coprocessor_error)
 {
 	if (IS_ENABLED(CONFIG_X86_INVD_BUG)) {
 		/* AMD 486 bug: INVD in CPL 0 raises #XF instead of #GP */
 		if (!static_cpu_has(X86_FEATURE_XMM)) {
-			__exc_general_protection(regs, 0);
+			exc_general_protection(regs, 0);
 			return;
 		}
 	}
 	math_error(regs, X86_TRAP_XF);
 }
 
-DEFINE_IDTENTRY(exc_spurious_interrupt_bug)
+DEFINE_IDTENTRY_RAW(exc_spurious_interrupt_bug)
 {
 	/*
 	 * This addresses a Pentium Pro Erratum:
@@ -1241,7 +1225,7 @@ static bool handle_xfd_event(struct pt_regs *regs)
 	return true;
 }
 
-DEFINE_IDTENTRY(exc_device_not_available)
+DEFINE_IDTENTRY_RAW(exc_device_not_available)
 {
 	unsigned long cr0 = read_cr0();
 
@@ -1339,7 +1323,7 @@ static void ve_raise_fault(struct pt_regs *regs, long error_code,
  * aspect. Similarly to #PF, #VE in these places will expose kernel to
  * privilege escalation or may lead to random crashes.
  */
-DEFINE_IDTENTRY(exc_virtualization_exception)
+DEFINE_IDTENTRY_RAW(exc_virtualization_exception)
 {
 	struct ve_info ve;
 

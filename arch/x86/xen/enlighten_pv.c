@@ -649,10 +649,7 @@ DEFINE_IDTENTRY_RAW(xenpv_exc_debug)
 	 * There's no IST on Xen PV, but we still need to dispatch
 	 * to the correct handler.
 	 */
-	if (user_mode(regs))
-		noist_exc_debug(regs);
-	else
-		exc_debug(regs);
+	exc_debug(regs);
 }
 
 DEFINE_IDTENTRY_RAW(exc_xen_unknown_trap)
@@ -671,10 +668,7 @@ DEFINE_IDTENTRY_RAW(xenpv_exc_machine_check)
 	 * There's no IST on Xen PV, but we still need to dispatch
 	 * to the correct handler.
 	 */
-	if (user_mode(regs))
-		noist_exc_machine_check(regs);
-	else
-		exc_machine_check(regs);
+	exc_machine_check(regs);
 }
 #endif
 
@@ -1307,8 +1301,6 @@ static void __init xen_domu_set_legacy_features(void)
 	x86_platform.legacy.rtc = 0;
 }
 
-extern void early_xen_iret_patch(void);
-
 /* First C function to be called on Xen boot */
 asmlinkage __visible void __init xen_start_kernel(struct start_info *si)
 {
@@ -1322,10 +1314,6 @@ asmlinkage __visible void __init xen_start_kernel(struct start_info *si)
 	clear_bss();
 
 	xen_start_info = si;
-
-	__text_gen_insn(&early_xen_iret_patch,
-			JMP32_INSN_OPCODE, &early_xen_iret_patch, &xen_iret,
-			JMP32_INSN_SIZE);
 
 	xen_domain_type = XEN_PV_DOMAIN;
 	xen_start_flags = xen_start_info->flags;

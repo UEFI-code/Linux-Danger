@@ -59,6 +59,8 @@
 #define AP_INIT_CR0_DEFAULT		0x60000010
 #define AP_INIT_MXCSR_DEFAULT		0x1f80
 
+void exc_vmm_communication_ker(struct pt_regs *regs, unsigned long error_code);
+
 /* For early boot hypervisor communication in SEV-ES enabled guests */
 static struct ghcb boot_ghcb_page __bss_decrypted __aligned(PAGE_SIZE);
 
@@ -1245,7 +1247,7 @@ void setup_ghcb(void)
 	 * If SNP is active, register the per-CPU GHCB page so that the runtime
 	 * exception handler can use it.
 	 */
-	if (initial_vc_handler == (unsigned long)kernel_exc_vmm_communication) {
+	if (initial_vc_handler == (unsigned long)exc_vmm_communication_ker) {
 		if (cc_platform_has(CC_ATTR_GUEST_SEV_SNP))
 			snp_register_per_cpu_ghcb();
 
@@ -1388,7 +1390,7 @@ void __init sev_es_init_vc_handling(void)
 	sev_es_setup_play_dead();
 
 	/* Secondary CPUs use the runtime #VC handler */
-	initial_vc_handler = (unsigned long)kernel_exc_vmm_communication;
+	initial_vc_handler = (unsigned long)exc_vmm_communication_ker;
 }
 
 static void __init vc_early_forward_exception(struct es_em_ctxt *ctxt)
@@ -1918,7 +1920,7 @@ static __always_inline bool vc_is_db(unsigned long error_code)
  * Runtime #VC exception handler when raised from kernel mode. Runs in NMI mode
  * and will panic when an error happens.
  */
-DEFINE_IDTENTRY_VC_KERNEL(exc_vmm_communication)
+void exc_vmm_communication_ker(struct pt_regs *regs, unsigned long error_code)
 {
 	irqentry_state_t irq_state;
 
@@ -1970,13 +1972,13 @@ DEFINE_IDTENTRY_VC_KERNEL(exc_vmm_communication)
  * Runtime #VC exception handler when raised from user mode. Runs in IRQ mode
  * and will kill the current task with SIGBUS when an error happens.
  */
-DEFINE_IDTENTRY_VC_USER(exc_vmm_communication)
+void exc_vmm_communication_user(struct pt_regs *regs, unsigned long error_code)
 {
 	/*
 	 * Handle #DB before calling into !noinstr code to avoid recursive #DB.
 	 */
 	if (vc_is_db(error_code)) {
-		noist_exc_debug(regs);
+		exc_debug(regs);
 		return;
 	}
 
@@ -1994,6 +1996,14 @@ DEFINE_IDTENTRY_VC_USER(exc_vmm_communication)
 
 	instrumentation_end();
 	irqentry_exit_to_user_mode(regs);
+}
+
+DEFINE_IDTENTRY_RAW_ERRORCODE(exc_vmm_communication)
+{
+	if(user_mode(regs))
+		exc_vmm_communication_user(regs, error_code);
+	else
+		exc_vmm_communication_ker(regs, error_code);
 }
 
 bool __init handle_vc_boot_ghcb(struct pt_regs *regs)
