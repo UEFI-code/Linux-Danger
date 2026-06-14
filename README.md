@@ -2,6 +2,13 @@
 
 This project modified the Linux kernel that make Usermode running in Ring0!
 
+```
+DISCLAIMER — I know it is STUPID to mention this {
+	0. This kernel is NOT "stable" or "secure"
+	1. Use it entirely at your OWN RISK. I take NO responsibility
+}, But I worry about someone doing something STUPID!
+```
+
 ![Logo](./linux_danger.png)
 
 # Omoshiroi Code Files
