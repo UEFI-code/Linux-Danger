@@ -453,51 +453,9 @@ SYM_CODE_END(\asmsym)
  * @cfunc:		C function to be called
  *
  * The macro emits code to set up the kernel context for #MC and #DB
- *
- * If the entry comes from user space it uses the normal entry path
- * including the return to user space work and preemption checks on
- * exit.
- *
- * If hits in kernel mode then it needs to go through the paranoid
- * entry as the exception can hit any random state. No preemption
- * check on exit to keep the paranoid path simple.
  */
 .macro idtentry_mce_db vector asmsym cfunc
-SYM_CODE_START(\asmsym)
-	// we should revert to the original RSP if interrupt/excption is from kernel space
-	chk_swap_gs_rsp 0 1
-	
-	UNWIND_HINT_IRET_ENTRY
-	ENDBR
-	ASM_CLAC
-	cld
-
-	pushq	$-1			/* ORIG_RAX: no syscall to restart */
-
-	/*
-	 * If the entry is from userspace, switch stacks and treat it as
-	 * a normal entry.
-	 */
-	cmp	$__KERNEL_CS, CS-ORIG_RAX(%rsp)
-	jne	.Lfrom_usermode_switch_stack_\@
-
-	/* paranoid_entry returns GS information for paranoid_exit in EBX. */
-	call	paranoid_entry
-
-	UNWIND_HINT_REGS
-
-	movq	%rsp, %rdi		/* pt_regs pointer */
-
-	call	\cfunc
-
-	jmp	paranoid_exit
-
-	/* Switch to the regular task stack and use the noist entry point */
-.Lfrom_usermode_switch_stack_\@:
-	idtentry_body noist_\cfunc, has_error_code=0
-
-_ASM_NOKPROBE(\asmsym)
-SYM_CODE_END(\asmsym)
+	idtentry \vector \asmsym \cfunc has_error_code=0
 .endm
 
 #ifdef CONFIG_AMD_MEM_ENCRYPT
@@ -600,22 +558,7 @@ SYM_CODE_START(\asmsym)
 	mov $0x2333, %dx // destination port
 	mov $0xDEAD, %ax // data
 	out %ax, %dx
-
-	/* paranoid_entry returns GS information for paranoid_exit in EBX. */
-	call	paranoid_entry
-	UNWIND_HINT_REGS
-
-	movq	%rsp, %rdi		/* pt_regs pointer into first argument */
-	movq	ORIG_RAX(%rsp), %rsi	/* get error code into 2nd argument*/
-	movq	$-1, ORIG_RAX(%rsp)	/* no syscall to restart */
-	call	\cfunc
-
-	/* For some configurations \cfunc ends up being a noreturn. */
-	REACHABLE
-
-	jmp	paranoid_exit
-
-_ASM_NOKPROBE(\asmsym)
+	idtentry_body \cfunc has_error_code=1
 SYM_CODE_END(\asmsym)
 .endm
 
