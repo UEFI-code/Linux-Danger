@@ -455,7 +455,7 @@ SYM_CODE_END(\asmsym)
  * The macro emits code to set up the kernel context for #MC and #DB
  */
 .macro idtentry_mce_db vector asmsym cfunc
-	idtentry \vector \asmsym \cfunc has_error_code=0
+	idtentry \vector \asmsym noist_\cfunc has_error_code=0
 .endm
 
 #ifdef CONFIG_AMD_MEM_ENCRYPT
